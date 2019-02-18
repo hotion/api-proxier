@@ -1,2 +1,3 @@
 # api-proxier
-proxier of gateway
+
+proxier of gateway and it's stateless.
