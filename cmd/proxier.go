@@ -27,7 +27,7 @@ func main() {
 	}
 
 	// init logger configuration
-	logger.InitLogger(*logpath)
+	logger.Init(*logpath)
 
 	// new engine to run
 	e, err := engine.New(etcdAddrs)

@@ -10,8 +10,9 @@ var (
 	Logger *pkglogger.Entity
 )
 
-// InitLogger call server-common to
-func InitLogger(logPath string) (err error) {
-	Logger, err = pkglogger.NewJSONLogger(logPath, "api-proxier.log", "debug")
+// Init call server-common to
+func Init(logPath string) (err error) {
+	// Logger, err = pkglogger.NewJSONLogger(logPath, "api-proxier.log", "debug")
+	Logger, err = pkglogger.NewTextLogger(logPath, "api-proxier.log", "debug")
 	return err
 }
