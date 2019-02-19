@@ -5,12 +5,12 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/jademperor/common/configs"
+	"github.com/jademperor/common/models"
 )
 
 // Load no cache rule settings, if the URI macthed any rule in rules
 // then abort cache plugin processing
-func (c *Cache) Load(rules []*configs.NocacheCfg) {
+func (c *Cache) Load(rules []*models.NocacheCfg) {
 	c.regexps = make([]*regexp.Regexp, len(rules))
 	for idx, r := range rules {
 		c.regexps[idx], _ = regexp.Compile(r.Regexp)

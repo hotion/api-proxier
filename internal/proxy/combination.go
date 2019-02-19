@@ -11,8 +11,8 @@ import (
 	"runtime/debug"
 	"time"
 
-	"github.com/jademperor/common/configs"
 	"github.com/jademperor/api-proxier/internal/logger"
+	"github.com/jademperor/common/models"
 )
 
 var (
@@ -27,7 +27,7 @@ type responseChan struct {
 }
 
 func combineReq(ctx context.Context, serverHost string, body io.Reader,
-	cfg *configs.APICombination, rc chan<- responseChan) {
+	cfg *models.APICombination, rc chan<- responseChan) {
 	var (
 		err error
 		r   = responseChan{

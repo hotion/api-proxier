@@ -17,7 +17,7 @@ import (
 	"github.com/jademperor/api-proxier/internal/logger"
 	"github.com/jademperor/api-proxier/internal/plugin"
 	"github.com/jademperor/api-proxier/internal/plugin/cache/presistence"
-	"github.com/jademperor/common/configs"
+	"github.com/jademperor/common/models"
 	"github.com/jademperor/common/pkg/utils"
 )
 
@@ -33,7 +33,7 @@ const (
 )
 
 // New PluginStore ...
-func New(store presistence.Store, rules []*configs.NocacheCfg) *Cache {
+func New(store presistence.Store, rules []*models.NocacheCfg) *Cache {
 	c := &Cache{
 		store:         store,
 		serializeForm: false,

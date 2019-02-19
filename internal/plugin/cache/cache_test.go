@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/yeqown/gateway/utils"
+	"github.com/jademperor/common/pkg/utils"
 )
 
 func Test_responseCache_Encode_Decode(t *testing.T) {

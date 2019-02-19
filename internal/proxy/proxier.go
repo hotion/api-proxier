@@ -14,12 +14,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/julienschmidt/httprouter"
 	"github.com/jademperor/api-proxier/internal/logger"
 	"github.com/jademperor/api-proxier/internal/plugin"
-	"github.com/jademperor/common/configs"
+	"github.com/jademperor/common/models"
 	"github.com/jademperor/common/pkg/code"
 	"github.com/jademperor/common/pkg/utils"
+	"github.com/julienschmidt/httprouter"
 	// roundrobin "github.com/jademperor/common/pkg/round-robin"
 )
 
@@ -39,21 +39,20 @@ var (
 
 func defaultHandleFunc(w http.ResponseWriter, req *http.Request, params httprouter.Params) {}
 func defaultErrorHandler(w http.ResponseWriter, req *http.Request, err error) {
-	utils.ResponseJSON(w, 
+	utils.ResponseJSON(w,
 		code.NewCodeInfo(code.CodeSystemErr, err.Error()))
 	return
 }
 
-
 // New ...
 func New(
-	apiRules []*configs.API, 
-	reverseSrvs map[string][]*configs.ServerInstance,
-	routingRules []*configs.Routing) *Proxier{
+	apiRules []*models.API,
+	reverseSrvs map[string][]*models.ServerInstance,
+	routingRules []*models.Routing) *Proxier {
 	p := &Proxier{
-		mutex: &sync.RWMutex{},
-		router:  httprouter.New(),
-		status:  plugin.Working,
+		mutex:  &sync.RWMutex{},
+		router: httprouter.New(),
+		status: plugin.Working,
 	}
 
 	// initial work
@@ -66,13 +65,14 @@ func New(
 
 // Proxier ...
 type Proxier struct {
-	mutex *sync.RWMutex
-	status  plugin.PlgStatus
-	clusters map[string]*configs.Cluster // clusters to manage reverseProxies 
-	router *httprouter.Router // router to match url
-	apiRules map[string]*configs.API // apis configs
-	routingRules map[string]*configs.Routing // routing configs
+	mutex        *sync.RWMutex
+	status       plugin.PlgStatus
+	clusters     map[string]*models.Cluster // clusters to manage reverseProxies
+	router       *httprouter.Router         // router to match url
+	apiRules     map[string]*models.API     // apis models
+	routingRules map[string]*models.Routing // routing models
 }
+
 // Handle proxy to handle with request
 func (p *Proxier) Handle(c *plugin.Context) {
 	defer plugin.Recover("Proxier")
@@ -113,8 +113,7 @@ func (p *Proxier) Status() plugin.PlgStatus {
 	return status
 }
 
-
-func (p *Proxier) matchAPIRule(method, path string) (*configs.API, bool) {
+func (p *Proxier) matchAPIRule(method, path string) (*models.API, bool) {
 	if handle, params, tsr := p.router.Lookup(method, path); handle != nil {
 		_, _ = params, tsr
 		return p.apiRules[path], true
@@ -122,7 +121,7 @@ func (p *Proxier) matchAPIRule(method, path string) (*configs.API, bool) {
 	return nil, false
 }
 
-func (p *Proxier) matchRoutingRule(path string) (*configs.Routing, bool) {
+func (p *Proxier) matchRoutingRule(path string) (*models.Routing, bool) {
 	pathPrefix := utils.ParseURIPrefix(path)
 	pathPrefix = strings.ToLower(pathPrefix)
 	rule, ok := p.routingRules[pathPrefix]
@@ -130,19 +129,20 @@ func (p *Proxier) matchRoutingRule(path string) (*configs.Routing, bool) {
 }
 
 // LoadClusters to load cfgs (type []proxy.ReverseServerCfg) to initial Proxier.Balancers
-func (p *Proxier) LoadClusters(cfgs map[string][]*configs.ServerInstance) {
-	p.clusters = make(map[string]*configs.Cluster, len(cfgs))
+func (p *Proxier) LoadClusters(cfgs map[string][]*models.ServerInstance) {
+	p.clusters = make(map[string]*models.Cluster)
 	for clsID, cfg := range cfgs {
 		// ignore empty cluster
 		if len(cfg) != 0 {
-			p.clusters[clsID] = configs.NewCluster(cfgs[clsID])
+			p.clusters[clsID] = models.NewCluster(cfgs[clsID])
+			logger.Logger.Infof("cluster :%s, registered with %d instance", clsID, len(cfg))
 		}
 	}
 }
 
 // LoadAPIs to load rules (type []proxy.PathRule) to initial
-func (p *Proxier) LoadAPIs(rules []*configs.API) {
-	p.apiRules = make(map[string]*configs.API)
+func (p *Proxier) LoadAPIs(rules []*models.API) {
+	p.apiRules = make(map[string]*models.API)
 	p.router = httprouter.New()
 	for _, rule := range rules {
 		// [done] TODO: valid rule all string need to be lower
@@ -161,8 +161,8 @@ func (p *Proxier) LoadAPIs(rules []*configs.API) {
 }
 
 // LoadRouting to load rules (type []proxy.ServerRule) to initial
-func (p *Proxier) LoadRouting(rules []*configs.Routing) {
-	p.routingRules = make(map[string]*configs.Routing)
+func (p *Proxier) LoadRouting(rules []*models.Routing) {
+	p.routingRules = make(map[string]*models.Routing)
 	for _, rule := range rules {
 		// [done] TODO: valid rule all string need to be lower
 		prefix := strings.ToLower(rule.Prefix)
@@ -183,7 +183,7 @@ func (p *Proxier) LoadRouting(rules []*configs.Routing) {
 }
 
 // callReverseURI reverse proxy to remote server and combine repsonse.
-func (p *Proxier) callReverseURI(rule *configs.API, c *plugin.Context) error {
+func (p *Proxier) callReverseURI(rule *models.API, c *plugin.Context) error {
 	oriPath := strings.ToLower(rule.Path)
 	req := c.Request()
 	w := c.ResponseWriter()
@@ -193,7 +193,7 @@ func (p *Proxier) callReverseURI(rule *configs.API, c *plugin.Context) error {
 			req.URL.Path = rule.RewritePath
 		}
 
-		clsID := strings.ToLower(rule.ClusterID)
+		clsID := strings.ToLower(rule.TargetClusterID)
 		cls, ok := p.clusters[clsID]
 		if !ok {
 			logger.Logger.Errorf("could not found balancer of %s, %s", oriPath, clsID)
@@ -202,7 +202,7 @@ func (p *Proxier) callReverseURI(rule *configs.API, c *plugin.Context) error {
 		}
 
 		srvIns := cls.Distribute()
-		reverseProxy := generateReverseProxy(srvIns) 
+		reverseProxy := generateReverseProxy(srvIns)
 		reverseProxy.ServeHTTP(w, req)
 		return nil
 	}
@@ -215,9 +215,9 @@ func (p *Proxier) callReverseURI(rule *configs.API, c *plugin.Context) error {
 	wg := sync.WaitGroup{}
 	for _, combCfg := range rule.CombineReqCfgs {
 		wg.Add(1)
-		go func(comb *configs.APICombination) {
+		go func(comb *models.APICombination) {
 			defer wg.Done()
-			cls, ok := p.clusters[comb.ServerName]
+			cls, ok := p.clusters[comb.TargetClusterID]
 			if !ok {
 				respChan <- responseChan{
 					Err:   ErrBalancerNotMatched,
@@ -257,7 +257,7 @@ func (p *Proxier) callReverseURI(rule *configs.API, c *plugin.Context) error {
 
 // callReverseServer to proxy request to another server
 // cannot combine two server response
-func (p *Proxier) callReverseServer(rule *configs.Routing, c *plugin.Context) error {
+func (p *Proxier) callReverseServer(rule *models.Routing, c *plugin.Context) error {
 	// need to trim prefix
 	req := c.Request()
 	w := c.ResponseWriter()
@@ -283,7 +283,7 @@ func (p *Proxier) callReverseServer(rule *configs.Routing, c *plugin.Context) er
 
 // generateReverseProxy ...
 // TODO: with cache
-func generateReverseProxy(ins *configs.ServerInstance) *httputil.ReverseProxy {
+func generateReverseProxy(ins *models.ServerInstance) *httputil.ReverseProxy {
 	target, err := url.Parse(ins.Addr)
 	if err != nil {
 		panic(utils.Fstring("could not parse URL: %s", ins.Addr))
