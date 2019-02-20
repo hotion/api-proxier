@@ -95,6 +95,10 @@ func (e *Engine) prepareClusters() {
 		if resp2, err := e.kapi.Get(context.Background(), clusterNode.Key, nil); err == nil && resp2.Node.Dir {
 			for _, srvInsNode := range resp2.Node.Nodes {
 				logger.Logger.Info("find server instance: ", srvInsNode.Key)
+				// skip cluster option node
+				if strings.Split(srvInsNode.Key, "/")[3] == configs.ClusterOptionsKey {
+					continue
+				}
 				srvInsCfg := new(models.ServerInstance)
 				if err := json.Unmarshal([]byte(srvInsNode.Value), srvInsCfg); err != nil {
 					logger.Logger.Error(err)
