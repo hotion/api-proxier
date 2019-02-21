@@ -42,11 +42,15 @@ func (e *Engine) clusterCallback(op etcdutils.OpCode, k, v string) {
 	// logger.Logger.Infof("clusters Op: %d, key: %s, value: %s", op, k, v)
 	h := utils.StringMD5(v)
 
-	if actual, loaded := hashCache.LoadOrStore(k, h); loaded && h != actual.(string) {
-		logger.Logger.Info("reload cluster configs")
-		hashCache.Store(k, h)
-		e.prepareClusters()
+	actual, loaded := hashCache.LoadOrStore(k, h)
+	// only if loaded(true) and not changed, can skip
+	if loaded && h == actual.(string) {
+		return
 	}
+	
+	hashCache.Store(k, h)
+	logger.Logger.Info("reload cluster configs")
+	e.prepareClusters()
 }
 
 func (e *Engine) apisCallback(op etcdutils.OpCode, k, v string) {

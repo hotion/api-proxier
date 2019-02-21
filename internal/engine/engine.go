@@ -94,17 +94,17 @@ func (e *Engine) prepareClusters() {
 		logger.Logger.Infof("find cluster instance id: %s", clusterID)
 		if resp2, err := e.kapi.Get(context.Background(), clusterNode.Key, nil); err == nil && resp2.Node.Dir {
 			for _, srvInsNode := range resp2.Node.Nodes {
-				logger.Logger.Info("find server instance: ", srvInsNode.Key)
 				// skip cluster option node
 				if strings.Split(srvInsNode.Key, "/")[3] == configs.ClusterOptionsKey {
 					continue
 				}
+
+				logger.Logger.Info("find server instance: ", srvInsNode.Key)
 				srvInsCfg := new(models.ServerInstance)
 				if err := etcdutils.Decode(srvInsNode.Value, srvInsCfg); err != nil {
 					logger.Logger.Error(err)
 					continue
 				}
-
 				if !srvInsCfg.IsAlive {
 					continue
 				}
