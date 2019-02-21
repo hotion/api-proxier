@@ -1,11 +1,13 @@
 package engine
 
 import (
-	"github.com/jademperor/common/configs"
+	"sync"
 	"time"
-
+	
+	"github.com/jademperor/common/pkg/utils"
 	"github.com/jademperor/api-proxier/internal/logger"
 	"github.com/jademperor/api-proxier/internal/plugin/cache"
+	"github.com/jademperor/common/configs"
 	"github.com/jademperor/common/etcdutils"
 )
 
@@ -15,9 +17,10 @@ var (
 	apisWatcher     *etcdutils.Watcher
 	routingsWatcher *etcdutils.Watcher
 	// rbacWatcher     *etcdutils.Watcher // rabc plugin watcher
-	// and etc
+	// etc
 
 	defaultDuration = 2 * time.Second
+	hashCache sync.Map // to store etcd key with value be hashed string
 )
 
 // initialWatchers ...
@@ -36,8 +39,14 @@ func (e *Engine) initialWatchers() {
 }
 
 func (e *Engine) clusterCallback(op etcdutils.OpCode, k, v string) {
-	logger.Logger.Infof("clusters Op: %d, key: %s, value: %s", op, k, v)
-	e.prepareClusters()
+	// logger.Logger.Infof("clusters Op: %d, key: %s, value: %s", op, k, v)
+	h := utils.StringMD5(v)
+
+	if actual, loaded := hashCache.LoadOrStore(k, h); loaded && h != actual.(string) {
+		logger.Logger.Info("reload cluster configs")
+		hashCache.Store(k, h)
+		e.prepareClusters()
+	}
 }
 
 func (e *Engine) apisCallback(op etcdutils.OpCode, k, v string) {

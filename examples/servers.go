@@ -42,6 +42,12 @@ func runServer1() {
 		return
 	})
 
+	mux.HandleFunc("/health", func(w http.ResponseWriter, req *http.Request) {
+		bs, _ := json.Marshal(response{Msg: "ok", Code: 0})
+		fmt.Fprintf(w, string(bs))
+		return
+	})
+
 	srv := &http.Server{
 		Handler: mux,
 		Addr:    ":9091",
@@ -62,6 +68,12 @@ func runServer2() {
 
 	mux.HandleFunc("/srv/id", func(w http.ResponseWriter, req *http.Request) {
 		bs, _ := json.Marshal(response{Msg: "2", Code: 0})
+		fmt.Fprintf(w, string(bs))
+		return
+	})
+
+	mux.HandleFunc("/health", func(w http.ResponseWriter, req *http.Request) {
+		bs, _ := json.Marshal(response{Msg: "ok", Code: 0})
 		fmt.Fprintf(w, string(bs))
 		return
 	})

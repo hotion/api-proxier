@@ -2,7 +2,7 @@ package engine
 
 import (
 	"context"
-	"encoding/json"
+	// "encoding/json"
 	"net/http"
 	"strings"
 	"time"
@@ -100,8 +100,12 @@ func (e *Engine) prepareClusters() {
 					continue
 				}
 				srvInsCfg := new(models.ServerInstance)
-				if err := json.Unmarshal([]byte(srvInsNode.Value), srvInsCfg); err != nil {
+				if err := etcdutils.Decode(srvInsNode.Value, srvInsCfg); err != nil {
 					logger.Logger.Error(err)
+					continue
+				}
+
+				if !srvInsCfg.IsAlive {
 					continue
 				}
 				srvInses = append(srvInses, srvInsCfg)
@@ -112,7 +116,7 @@ func (e *Engine) prepareClusters() {
 			}
 		}
 	}
-	logger.Logger.Info(clusterCfgs)
+	// logger.Logger.Info(clusterCfgs)
 	e.proxier.LoadClusters(clusterCfgs)
 }
 
@@ -127,7 +131,7 @@ func (e *Engine) prepareAPIs() {
 	for _, apiNode := range resp.Node.Nodes {
 		logger.Logger.Info("find api cfg instance: ", apiNode.Key)
 		apiCfg := new(models.API)
-		json.Unmarshal([]byte(apiNode.Value), apiCfg)
+		etcdutils.Decode(apiNode.Value, apiCfg)
 		apiCfgs = append(apiCfgs, apiCfg)
 	}
 	e.proxier.LoadAPIs(apiCfgs)
@@ -144,7 +148,7 @@ func (e *Engine) prepareRoutings() {
 	for _, routingNode := range resp.Node.Nodes {
 		logger.Logger.Info("find routing cfg instance: ", routingNode.Key)
 		routingCfg := new(models.Routing)
-		json.Unmarshal([]byte(routingNode.Value), routingCfg)
+		etcdutils.Decode(routingNode.Value, routingCfg)
 		routingCfgs = append(routingCfgs, routingCfg)
 	}
 	e.proxier.LoadRouting(routingCfgs)
@@ -163,7 +167,7 @@ func (e *Engine) prepareCache(c *cache.Cache) {
 	for _, cacheNode := range resp.Node.Nodes {
 		logger.Logger.Info("find routing cfg instance: ", cacheNode.Key)
 		nocCfg := new(models.NocacheCfg)
-		json.Unmarshal([]byte(cacheNode.Value), nocCfg)
+		etcdutils.Decode(cacheNode.Value, nocCfg)
 		rules = append(rules, nocCfg)
 	}
 	c.Load(rules)
