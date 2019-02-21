@@ -14,7 +14,7 @@ func encode(v interface{}) string {
 	return string(byts)
 }
 
-func prepareServerInstance(store etcdutils.Store) {
+func prepareServerInstance(store *etcdutils.EtcdStore) {
 	srvIns1 := &models.ServerInstance{
 		Idx:       "1",
 		Name:      "server1",
@@ -34,7 +34,7 @@ func prepareServerInstance(store etcdutils.Store) {
 	store.Set("/clusters/1/2", encode(srvIns2), -1)
 }
 
-func prepareRouting(store etcdutils.Store) {
+func prepareRouting(store *etcdutils.EtcdStore) {
 	routing1 := &models.Routing{
 		Idx:             "1",
 		Prefix:          "/srv1",
@@ -44,7 +44,7 @@ func prepareRouting(store etcdutils.Store) {
 	store.Set("/routings/1", encode(routing1), -1)
 }
 
-func prepareAPIs(store etcdutils.Store) {
+func prepareAPIs(store *etcdutils.EtcdStore) {
 	api1 := &models.API{
 		Idx:             "1",
 		Path:            "/example/name",
@@ -76,14 +76,12 @@ func prepareAPIs(store etcdutils.Store) {
 		NeedCombine:     true,
 		CombineReqCfgs: []*models.APICombination{
 			&models.APICombination{
-				Idx:             "1",
 				Path:            "/srv/id",
 				Field:           "id",
 				Method:          http.MethodGet,
 				TargetClusterID: "1",
 			},
 			&models.APICombination{
-				Idx:             "2",
 				Path:            "/srv/name",
 				Field:           "name",
 				Method:          http.MethodGet,

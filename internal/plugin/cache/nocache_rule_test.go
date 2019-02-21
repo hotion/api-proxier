@@ -3,14 +3,14 @@ package cache
 import (
 	"testing"
 
-	"github.com/jademperor/common/configs"
+	"github.com/jademperor/common/models"
 )
 
 func Test_initRules(t *testing.T) {
 	c := &Cache{}
 
 	type args struct {
-		rules []*configs.NocacheCfg
+		rules []*models.NocacheCfg
 	}
 	tests := []struct {
 		name string
@@ -19,16 +19,16 @@ func Test_initRules(t *testing.T) {
 		{
 			name: "case 1",
 			args: args{
-				rules: []*configs.NocacheCfg{
-					&configs.NocacheCfg{Regexp: "^/api$"},
-					&configs.NocacheCfg{Regexp: "/d{1,2}*"},
+				rules: []*models.NocacheCfg{
+					&models.NocacheCfg{Regexp: "^/api$"},
+					&models.NocacheCfg{Regexp: "/d{1,2}*"},
 				},
 			},
 		},
 		{
 			name: "case 2",
 			args: args{
-				rules: []*configs.NocacheCfg{},
+				rules: []*models.NocacheCfg{},
 			},
 		},
 	}
@@ -45,10 +45,10 @@ func Test_initRules(t *testing.T) {
 
 func Test_matchNoCacheRule(t *testing.T) {
 	c := &Cache{}
-	c.Load([]*configs.NocacheCfg{
-		&configs.NocacheCfg{Regexp: "^/api/url$"},
-		&configs.NocacheCfg{Regexp: "^/api/test$"},
-		&configs.NocacheCfg{Regexp: "^/api/hire$"},
+	c.Load([]*models.NocacheCfg{
+		&models.NocacheCfg{Regexp: "^/api/url$"},
+		&models.NocacheCfg{Regexp: "^/api/test$"},
+		&models.NocacheCfg{Regexp: "^/api/hire$"},
 	})
 
 	type args struct {
