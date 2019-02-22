@@ -8,13 +8,12 @@ import (
 	"time"
 
 	"github.com/jademperor/api-proxier/internal/logger"
-	"github.com/jademperor/api-proxier/internal/plugin"
-	"github.com/jademperor/api-proxier/internal/plugin/cache"
-	"github.com/jademperor/api-proxier/internal/plugin/cache/presistence"
-	"github.com/jademperor/api-proxier/internal/plugin/httplog"
-	"github.com/jademperor/api-proxier/internal/plugin/ratelimit"
-	// "github.com/jademperor/api-proxier/internal/plugin/rbac"
 	"github.com/jademperor/api-proxier/internal/proxy"
+	"github.com/jademperor/api-proxier/plugin"
+	"github.com/jademperor/api-proxier/plugin/cache"
+	"github.com/jademperor/api-proxier/plugin/cache/presistence"
+	"github.com/jademperor/api-proxier/plugin/httplog"
+	"github.com/jademperor/api-proxier/plugin/ratelimit"
 	"github.com/jademperor/common/configs"
 	"github.com/jademperor/common/etcdutils"
 	"github.com/jademperor/common/models"
@@ -22,7 +21,7 @@ import (
 )
 
 // New Engine ...
-func New(etcdAddrs []string) (*Engine, error) {
+func New(etcdAddrs []string, pluginsFlag []string) (*Engine, error) {
 	kapi, err := etcdutils.Connect(etcdAddrs...)
 	if err != nil {
 		return nil, err
@@ -37,6 +36,7 @@ func New(etcdAddrs []string) (*Engine, error) {
 	e.prepare()
 
 	e.initPlugins()
+	e.installExtension(pluginsFlag)
 	e.initialWatchers()
 
 	return e, nil
@@ -65,7 +65,20 @@ func (e *Engine) initPlugins() {
 	e.use(plgHTTPLogger)  // idx = 0
 	e.use(plgCache)       // idx = 1
 	e.use(plgTokenBucket) // idx = 2
-	// e.use(plgRBAC)        // idx = 3
+}
+
+func (e *Engine) installExtension(pluginsFlag []string) {
+	for _, plgFlag := range pluginsFlag {
+		plg, err := plugin.ParseExtension(plgFlag)
+		if err != nil {
+			logger.Logger.Errorf("plugin.ParseExtension() got error: %v, skip this", err)
+			continue
+		}
+		if plg == nil {
+			continue
+		}
+		e.use(plg)
+	}
 }
 
 func (e *Engine) use(plgs ...plugin.Plugin) {

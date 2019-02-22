@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jademperor/api-proxier/internal/plugin"
+	"github.com/jademperor/api-proxier/plugin"
 )
 
 var (

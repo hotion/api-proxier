@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/jademperor/common/pkg/utils"
 	"github.com/jademperor/common/pkg/code"
+	"github.com/jademperor/common/pkg/utils"
 )
 
 // PlgStatus ...
@@ -45,6 +45,7 @@ func NewContext(w http.ResponseWriter, req *http.Request, plugins []Plugin) *Con
 		Path:      path,
 		Form:      utils.ParseRequestForm(cpyReq),
 		plugins:   plugins,
+		numPlugin: len(plugins),
 		pluginIdx: -1,
 		w:         w,
 		req:       req,
@@ -72,6 +73,7 @@ type Context struct {
 
 // Next ...
 func (c *Context) Next() {
+	fmt.Printf("plugin idx: %d, handle result: %v\n", c.pluginIdx, c.aborted)
 	// handle aborrted
 	if c.aborted {
 		return

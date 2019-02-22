@@ -13,11 +13,13 @@ import (
 var (
 	addr      = flag.String("addr", ":9000", "http server listen on")
 	logpath   = flag.String("logpath", "./logs", "log files folder")
+	plugins   utils.StringArray
 	etcdAddrs utils.StringArray
 )
 
 func main() {
 	flag.Var(&etcdAddrs, "etcd-addr", "addr of etcd store")
+	flag.Var(&plugins, "plugin", "plugin extension format like: [pluginName:plugin.so:/path/to/config]")
 	flag.Parse()
 
 	// valid command line arguments
@@ -30,7 +32,7 @@ func main() {
 	logger.Init(*logpath)
 
 	// new engine to run
-	e, err := engine.New(etcdAddrs)
+	e, err := engine.New(etcdAddrs, plugins)
 	if err != nil {
 		log.Fatal(err)
 	}

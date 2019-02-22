@@ -6,7 +6,7 @@ import (
 	
 	"github.com/jademperor/common/pkg/utils"
 	"github.com/jademperor/api-proxier/internal/logger"
-	"github.com/jademperor/api-proxier/internal/plugin/cache"
+	"github.com/jademperor/api-proxier/plugin/cache"
 	"github.com/jademperor/common/configs"
 	"github.com/jademperor/common/etcdutils"
 )

@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/jademperor/api-proxier/internal/plugin"
+	"github.com/jademperor/api-proxier/plugin"
 	"github.com/jademperor/common/pkg/logger"
 )
 

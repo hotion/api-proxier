@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/jademperor/api-proxier/internal/logger"
-	"github.com/jademperor/api-proxier/internal/plugin"
+	"github.com/jademperor/api-proxier/plugin"
 	"github.com/jademperor/common/models"
 	"github.com/jademperor/common/pkg/code"
 	"github.com/jademperor/common/pkg/utils"
