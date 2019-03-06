@@ -5,7 +5,7 @@ package proxy
 import (
 	"context"
 	"errors"
-	"fmt"
+	// "fmt"
 	"log"
 	"net/http"
 	"net/http/httputil"
@@ -29,12 +29,10 @@ const (
 )
 
 var (
-	// ErrBalancerNotMatched plugin.Proxier balancer not matched
-	ErrBalancerNotMatched = errors.New("plugin.Proxier balancer not matched")
 	// ErrPageNotFound can not found page
-	ErrPageNotFound = errors.New("404 Page Not Found")
-	// ErrNoReverseServer ...
-	ErrNoReverseServer = errors.New("could not found reverse proxy")
+	ErrPageNotFound = errors.New("Page not found")
+	// ErrNoAvailableCluster no
+	ErrNoAvailableCluster = errors.New("No available cluster")
 )
 
 func defaultHandleFunc(w http.ResponseWriter, req *http.Request, params httprouter.Params) {}
@@ -67,10 +65,10 @@ func New(
 type Proxier struct {
 	mutex        *sync.RWMutex
 	status       plugin.PlgStatus
+	router       *httprouter.Router         // router to match incoming URL and Method
 	clusters     map[string]*models.Cluster // clusters to manage reverseProxies
-	router       *httprouter.Router         // router to match url
-	apiRules     map[string]*models.API     // apis models
-	routingRules map[string]*models.Routing // routing models
+	apiRules     map[string]*models.API     // apis configs to proxy
+	routingRules map[string]*models.Routing // routing configs to proxy
 }
 
 // Handle proxy to handle with request
@@ -197,8 +195,8 @@ func (p *Proxier) callReverseURI(rule *models.API, c *plugin.Context) error {
 		cls, ok := p.clusters[clsID]
 		if !ok {
 			logger.Logger.Errorf("could not found balancer of %s, %s", oriPath, clsID)
-			errmsg := utils.Fstring("error: plugin.Proxier balancer not found! (path: %s)", oriPath)
-			return fmt.Errorf("%v", errmsg)
+			// errmsg := utils.Fstring("error: plugin.Proxier balancer not found! (path: %s)", oriPath)
+			return ErrNoAvailableCluster
 		}
 
 		srvIns := cls.Distribute()
@@ -220,7 +218,7 @@ func (p *Proxier) callReverseURI(rule *models.API, c *plugin.Context) error {
 			cls, ok := p.clusters[comb.TargetClusterID]
 			if !ok {
 				respChan <- responseChan{
-					Err:   ErrBalancerNotMatched,
+					Err:   ErrNoAvailableCluster,
 					Field: comb.Field,
 					Data:  nil,
 				}
@@ -270,8 +268,8 @@ func (p *Proxier) callReverseServer(rule *models.Routing, c *plugin.Context) err
 	cls, ok := p.clusters[clsID]
 
 	if !ok {
-		errmsg := utils.Fstring("%s Not Found!", clsID)
-		return fmt.Errorf("%v", errmsg)
+		logger.Logger.Errorf("%s Not Found!", clsID)
+		return ErrNoAvailableCluster
 	}
 
 	srvIns := cls.Distribute()

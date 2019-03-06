@@ -1,7 +1,7 @@
 package engine
 
 import (
-	"context"
+	// "context"
 	// "encoding/json"
 	"net/http"
 	"strings"
@@ -10,26 +10,27 @@ import (
 	"github.com/jademperor/api-proxier/internal/logger"
 	"github.com/jademperor/api-proxier/internal/proxy"
 	"github.com/jademperor/api-proxier/plugin"
-	"github.com/jademperor/api-proxier/plugin/cache"
-	"github.com/jademperor/api-proxier/plugin/cache/presistence"
+	// "github.com/jademperor/api-proxier/plugin/cache"
+	// "github.com/jademperor/api-proxier/plugin/cache/presistence"
 	"github.com/jademperor/api-proxier/plugin/httplog"
 	"github.com/jademperor/api-proxier/plugin/ratelimit"
 	"github.com/jademperor/common/configs"
 	"github.com/jademperor/common/etcdutils"
 	"github.com/jademperor/common/models"
-	"go.etcd.io/etcd/client"
+	// "go.etcd.io/etcd/client"
 )
 
 // New Engine ...
 func New(etcdAddrs []string, pluginsFlag []string) (*Engine, error) {
-	kapi, err := etcdutils.Connect(etcdAddrs...)
+	store, err := etcdutils.NewEtcdStore(etcdAddrs)
 	if err != nil {
 		return nil, err
 	}
 
 	e := &Engine{
 		proxier: proxy.New(nil, nil, nil),
-		kapi:    kapi,
+		store:   store,
+		// kapi:    kapi,
 	}
 
 	// proxier data loading ...
@@ -44,34 +45,29 @@ func New(etcdAddrs []string, pluginsFlag []string) (*Engine, error) {
 
 // Engine contains fields to server http server with http request
 type Engine struct {
-	allPlugins   []plugin.Plugin // all register plugins
-	numAllPlugin int             // num of plugin
-	proxier      *proxy.Proxier  // proxier
-	kapi         client.KeysAPI  // etcd client api
+	allPlugins   []plugin.Plugin      // all register plugins
+	numAllPlugin int                  // num of plugin
+	proxier      *proxy.Proxier       // proxier
+	store        *etcdutils.EtcdStore // etcd storer
+	// kapi         client.KeysAPI  // etcd client api
 	// addr         string          // gate addr
 }
 
 // initial plugins
 func (e *Engine) initPlugins() {
 	plgHTTPLogger := httplog.New(logger.Logger)
-	plgCache := cache.New(presistence.NewInMemoryStore(), nil)
 	plgTokenBucket := ratelimit.New(10, 1)
-	// plgRBAC := rbac.New("user_id", nil, nil)
-
-	// e.prepareRBAC(plgRBAC)
-	e.prepareCache(plgCache)
 
 	// install plugins
 	e.use(plgHTTPLogger)  // idx = 0
-	e.use(plgCache)       // idx = 1
-	e.use(plgTokenBucket) // idx = 2
+	e.use(plgTokenBucket) // idx = 1
 }
 
 func (e *Engine) installExtension(pluginsFlag []string) {
 	for _, plgFlag := range pluginsFlag {
-		plg, err := plugin.ParseExtension(plgFlag)
+		plg, err := plugin.InstallExtension(plgFlag)
 		if err != nil {
-			logger.Logger.Errorf("plugin.ParseExtension() got error: %v, skip this", err)
+			logger.Logger.Errorf("plugin.InstallExtension() got error: %v, skip this", err)
 			continue
 		}
 		if plg == nil {
@@ -97,39 +93,31 @@ func (e *Engine) prepareClusters() {
 	var (
 		clusterCfgs = make(map[string][]*models.ServerInstance)
 	)
-	resp, err := e.kapi.Get(context.Background(), configs.ClustersKey, nil)
-	if err != nil || !resp.Node.Dir {
-		return
-	}
-	for _, clusterNode := range resp.Node.Nodes {
-		clusterID := strings.Split(clusterNode.Key, "/")[2]
-		srvInses := make([]*models.ServerInstance, 0)
-		logger.Logger.Infof("find cluster instance id: %s", clusterID)
-		if resp2, err := e.kapi.Get(context.Background(), clusterNode.Key, nil); err == nil && resp2.Node.Dir {
-			for _, srvInsNode := range resp2.Node.Nodes {
-				// skip cluster option node
-				if strings.Split(srvInsNode.Key, "/")[3] == configs.ClusterOptionsKey {
-					continue
-				}
 
-				logger.Logger.Info("find server instance: ", srvInsNode.Key)
-				srvInsCfg := new(models.ServerInstance)
-				if err := etcdutils.Decode(srvInsNode.Value, srvInsCfg); err != nil {
-					logger.Logger.Error(err)
-					continue
-				}
-				if !srvInsCfg.IsAlive {
-					continue
-				}
-				srvInses = append(srvInses, srvInsCfg)
-			}
-			if len(srvInses) != 0 {
-				clusterCfgs[clusterID] = srvInses
-				logger.Logger.Infof("clusterCfgs register: id-%s, count-%d", clusterID, len(srvInses))
-			}
+	e.store.Iter(configs.ClustersKey, 2, func(k, v string, dir bool) {
+		if dir {
+			return
 		}
-	}
-	// logger.Logger.Info(clusterCfgs)
+
+		// skip option nodes
+		splitResults := strings.Split(k, "/")
+		if splitResults[3] == configs.ClusterOptionsKey {
+			return
+		}
+
+		logger.Logger.Info("find server instance: ", k)
+		srvInsCfg := new(models.ServerInstance)
+		if err := etcdutils.Decode(v, srvInsCfg); err != nil {
+			logger.Logger.Error(err)
+			return
+		}
+		if !srvInsCfg.IsAlive {
+			return
+		}
+		clusterCfgs[splitResults[2]] = append(clusterCfgs[splitResults[2]], srvInsCfg)
+		logger.Logger.Info("add an available instance: ", srvInsCfg)
+	})
+
 	e.proxier.LoadClusters(clusterCfgs)
 }
 
@@ -137,16 +125,16 @@ func (e *Engine) prepareAPIs() {
 	var (
 		apiCfgs []*models.API
 	)
-	resp, err := e.kapi.Get(context.Background(), configs.APIsKey, nil)
-	if err != nil || !resp.Node.Dir {
-		return
-	}
-	for _, apiNode := range resp.Node.Nodes {
-		logger.Logger.Info("find api cfg instance: ", apiNode.Key)
+
+	e.store.Iter(configs.APIsKey, 1, func(k, v string, dir bool) {
+		if dir {
+			return
+		}
+		logger.Logger.Info("find api cfg instance: ", k)
 		apiCfg := new(models.API)
-		etcdutils.Decode(apiNode.Value, apiCfg)
+		etcdutils.Decode(v, apiCfg)
 		apiCfgs = append(apiCfgs, apiCfg)
-	}
+	})
 	e.proxier.LoadAPIs(apiCfgs)
 }
 
@@ -154,36 +142,17 @@ func (e *Engine) prepareRoutings() {
 	var (
 		routingCfgs = make([]*models.Routing, 0)
 	)
-	resp, err := e.kapi.Get(context.Background(), configs.RoutingsKey, nil)
-	if err != nil || !resp.Node.Dir {
-		return
-	}
-	for _, routingNode := range resp.Node.Nodes {
-		logger.Logger.Info("find routing cfg instance: ", routingNode.Key)
+
+	e.store.Iter(configs.RoutingsKey, 1, func(k, v string, dir bool) {
+		if dir {
+			return
+		}
+		logger.Logger.Info("find routing cfg instance: ", k)
 		routingCfg := new(models.Routing)
-		etcdutils.Decode(routingNode.Value, routingCfg)
+		etcdutils.Decode(v, routingCfg)
 		routingCfgs = append(routingCfgs, routingCfg)
-	}
+	})
 	e.proxier.LoadRouting(routingCfgs)
-}
-
-// func (e *Engine) prepareRBAC() { }
-
-func (e *Engine) prepareCache(c *cache.Cache) {
-	var (
-		rules = make([]*models.NocacheCfg, 0)
-	)
-	resp, err := e.kapi.Get(context.Background(), configs.RoutingsKey, nil)
-	if err != nil || !resp.Node.Dir {
-		return
-	}
-	for _, cacheNode := range resp.Node.Nodes {
-		logger.Logger.Info("find routing cfg instance: ", cacheNode.Key)
-		nocCfg := new(models.NocacheCfg)
-		etcdutils.Decode(cacheNode.Value, nocCfg)
-		rules = append(rules, nocCfg)
-	}
-	c.Load(rules)
 }
 
 // ServeHTTP the implemention of http.Handler
