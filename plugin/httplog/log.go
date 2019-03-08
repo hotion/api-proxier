@@ -27,7 +27,7 @@ func New(logger *logger.Entity) *HTTPLogger {
 // HTTPLogger ...
 type HTTPLogger struct {
 	logger      *logger.Entity // logger.Entity is writer to log
-	logResponse bool        // logResponse to log response into file or not
+	logResponse bool           // logResponse to log response into file or not
 	enabled     bool
 	status      plugin.PlgStatus
 }
@@ -42,6 +42,7 @@ func (h *HTTPLogger) Handle(ctx *plugin.Context) {
 	// to log response
 	rbw = &respBodyWriter{
 		body:           bytes.NewBufferString(""),
+		status:         http.StatusOK,
 		ResponseWriter: ctx.ResponseWriter(),
 	}
 	ctx.SetResponseWriter(rbw)
@@ -105,12 +106,12 @@ type respBodyWriter struct {
 	body   *bytes.Buffer
 }
 
-func (w respBodyWriter) Write(b []byte) (int, error) {
+func (w *respBodyWriter) Write(b []byte) (int, error) {
 	w.body.Write(b)
 	return w.ResponseWriter.Write(b)
 }
 
-func (w respBodyWriter) WriteHeader(status int) {
+func (w *respBodyWriter) WriteHeader(status int) {
 	w.status = status
 	w.ResponseWriter.WriteHeader(status)
 }
