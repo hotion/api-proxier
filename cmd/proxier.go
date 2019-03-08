@@ -13,6 +13,7 @@ import (
 var (
 	addr      = flag.String("addr", ":9000", "http server listen on")
 	logpath   = flag.String("logpath", "./logs", "log files folder")
+	debug     = flag.Bool("debug", false, "open debug")
 	plugins   utils.StringArray
 	etcdAddrs utils.StringArray
 )
@@ -29,7 +30,7 @@ func main() {
 	}
 
 	// init logger configuration
-	logger.Init(*logpath)
+	logger.Init(*logpath, *debug)
 
 	// new engine to run
 	e, err := engine.New(etcdAddrs, plugins)

@@ -40,7 +40,7 @@ func combineReq(ctx context.Context, serverHost string, body io.Reader,
 
 	defer func() {
 		if v := recover(); v != nil {
-			logger.Logger.Errorf("plugin.Proxy combineReq panic: %s", debug.Stack())
+			logger.Logger.Errorf("[proxier] combineReq panic: %s", debug.Stack())
 			err = v.(error)
 			r.Err = err
 		}
@@ -48,7 +48,7 @@ func combineReq(ctx context.Context, serverHost string, body io.Reader,
 
 	select {
 	case <-ctx.Done():
-		logger.Logger.Info("plugin.Proxy combineReq timeout!")
+		logger.Logger.Info("[proxier] combineReq timeout!")
 		r.Err = ErrTimeout
 		break
 	default:

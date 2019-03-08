@@ -34,12 +34,12 @@ func New(cap, r int) *Bucket {
 
 // Bucket contains token for request
 type Bucket struct {
-	capacity int // max token to own
-	r        int // speed to generate a token per second
-	rest     int // rest token count
-	rwm      sync.RWMutex
-	enabled  bool
-	status   plugin.PlgStatus
+	capacity int              // max token to own
+	r        int              // speed to generate a token per second
+	rest     int              // rest token count
+	rwm      sync.RWMutex     // RW mutex
+	enabled  bool             // enabled flag
+	status   plugin.PlgStatus // stauts flag
 }
 
 // init bucket
@@ -109,5 +109,4 @@ func (b *Bucket) startGenerateToken() {
 			time.Sleep(100 * time.Millisecond)
 		}
 	}
-
 }

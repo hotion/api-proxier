@@ -23,7 +23,7 @@ var (
 	hashCache       sync.Map // to store etcd key with value be hashed string
 )
 
-// initialWatchers ...
+// initialWatchers to get all watchers to be ready of watching the change of config
 func (e *Engine) initialWatchers() {
 	clusterWatcher = etcdutils.NewWatcher(e.store.Kapi, defaultDuration, configs.ClustersKey)
 	apisWatcher = etcdutils.NewWatcher(e.store.Kapi, defaultDuration, configs.APIsKey)
@@ -42,12 +42,13 @@ func (e *Engine) clusterCallback(op etcdutils.OpCode, k, v string) {
 	// logger.Logger.Infof("clusters Op: %d, key: %s, value: %s", op, k, v)
 	h := utils.StringMD5(v)
 
-	actual, loaded := hashCache.LoadOrStore(k, h)
 	// only if loaded(true) and not changed, can skip
-	if loaded && h == actual.(string) {
+	// it means 'k' has been exist and 'h' no change
+	if actual, loaded := hashCache.LoadOrStore(k, h); loaded && h == actual.(string) {
 		return
 	}
 
+	// else store it and reload clusters
 	hashCache.Store(k, h)
 	logger.Logger.Info("reload cluster configs")
 	e.prepareClusters()
@@ -62,14 +63,3 @@ func (e *Engine) routingsCallback(op etcdutils.OpCode, k, v string) {
 	logger.Logger.Infof("routings Op: %d, key: %s, value: %s", op, k, v)
 	e.prepareRoutings()
 }
-
-// func (e *Engine) cacheCallback(op etcdutils.OpCode, k, v string) {
-// 	logger.Logger.Infof("cache Op: %d, key: %s, value: %s", op, k, v)
-// 	e.prepareCache(e.allPlugins[1].(*cache.Cache))
-// }
-
-// func (e *Engine) rbacCallback(op etcdutils.OpCode, k, v string) {
-// 	// TODO
-// 	logger.Logger.Infof("RBAC Op: %d, key: %s, value: %s", op, k, v)
-// 	// notify reload
-// }

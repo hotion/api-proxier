@@ -9,11 +9,9 @@ import (
 
 	"github.com/jademperor/api-proxier/internal/logger"
 	"github.com/jademperor/api-proxier/internal/proxy"
+	"github.com/jademperor/api-proxier/internal/stdplugin/httplog"
+	"github.com/jademperor/api-proxier/internal/stdplugin/ratelimit"
 	"github.com/jademperor/api-proxier/plugin"
-	// "github.com/jademperor/api-proxier/plugin/cache"
-	// "github.com/jademperor/api-proxier/plugin/cache/presistence"
-	"github.com/jademperor/api-proxier/plugin/httplog"
-	"github.com/jademperor/api-proxier/plugin/ratelimit"
 	"github.com/jademperor/common/configs"
 	"github.com/jademperor/common/etcdutils"
 	"github.com/jademperor/common/models"
@@ -40,6 +38,12 @@ func New(etcdAddrs []string, pluginsFlag []string) (*Engine, error) {
 	e.installExtension(pluginsFlag)
 	e.initialWatchers()
 
+	// generate a new contextPool
+	if e.contextPool, err = plugin.NewContextPool(100, 1000,
+		plugin.DefaultFactory, e.allPlugins); err != nil {
+		return nil, err
+	}
+
 	return e, nil
 }
 
@@ -49,6 +53,7 @@ type Engine struct {
 	numAllPlugin int                  // num of plugin
 	proxier      *proxy.Proxier       // proxier
 	store        *etcdutils.EtcdStore // etcd storer
+	contextPool  *plugin.ContextPool
 	// kapi         client.KeysAPI  // etcd client api
 	// addr         string          // gate addr
 }
@@ -56,7 +61,7 @@ type Engine struct {
 // initial plugins
 func (e *Engine) initPlugins() {
 	plgHTTPLogger := httplog.New(logger.Logger)
-	plgTokenBucket := ratelimit.New(10, 1)
+	plgTokenBucket := ratelimit.New(1000000, 1000)
 
 	// install plugins
 	e.use(plgHTTPLogger)  // idx = 0
@@ -119,6 +124,7 @@ func (e *Engine) prepareClusters() {
 	})
 
 	e.proxier.LoadClusters(clusterCfgs)
+	e.proxier.LoadBreakers(clusterCfgs)
 }
 
 func (e *Engine) prepareAPIs() {
@@ -157,7 +163,14 @@ func (e *Engine) prepareRoutings() {
 
 // ServeHTTP the implemention of http.Handler
 func (e *Engine) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	ctx := plugin.NewContext(w, req, e.allPlugins)
+	// ctx := plugin.NewContext(w, req, e.allPlugins)
+	ctx, err := e.contextPool.Get(w, req, plugin.DefaultPreFactory)
+	if err != nil {
+		ctx.SetError(err)
+		return
+	}
+
+	// start process with plugin
 	ctx.Next()
 
 	if ctx.Aborted() {
@@ -165,6 +178,7 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	e.proxier.Handle(ctx)
+	e.contextPool.Put(ctx)
 }
 
 // Run Engine start listenning and serving by ServeHTTP
