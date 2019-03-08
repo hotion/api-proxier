@@ -11,8 +11,20 @@ import (
 	"github.com/jademperor/common/pkg/utils"
 )
 
+// var _ Ctx = &Context{}
+
+// Ctx for proxier to transfer request body and other
+// type Ctx interface {
+// 	Next()
+// 	Abort(status int)
+// 	Aborted() bool
+// 	String(s string) error
+// 	JSON(v interface{}) error
+// }
+
 // NewContext generate a Context
-// TODO: do this work with pool
+// [done] TODO: do this work with pool, but here remain this funcs
+// TODO: design a test for this function with ContextPool
 func NewContext(w http.ResponseWriter, req *http.Request, plugins []Plugin) *Context {
 	method := req.Method
 	path := req.URL.Path
@@ -32,12 +44,17 @@ func NewContext(w http.ResponseWriter, req *http.Request, plugins []Plugin) *Con
 	}
 }
 
-// Context ... contains infomation to transfer
+// Context contains infomation to transfer data between plugins
 type Context struct {
-	Ctx    context.Context // ctx control signal for multi goroutine
-	Method string          // request method
-	Path   string          // request Path
-	Form   url.Values      // request parsed form
+
+	// Ctx means ctx control signal for multi goroutine
+	Ctx context.Context
+	// Method means request method
+	Method string
+	// Path means request Path
+	Path string
+	// Form includes current http request has been parsed form values
+	Form url.Values
 
 	req *http.Request
 	w   http.ResponseWriter
@@ -50,7 +67,7 @@ type Context struct {
 	err     error // error
 }
 
-// Next ...
+// Next call next plugin in context, if has beed aborted then just return
 func (c *Context) Next() {
 	// fmt.Printf("plugin idx: %d, handle result: %v\n", c.pluginIdx, c.aborted)
 	// handle aborrted
@@ -98,6 +115,9 @@ func (c *Context) Set(req *http.Request, w http.ResponseWriter) {
 func (c *Context) Reset() {
 	c.req = nil
 	c.w = nil
+	c.Form = nil
+	c.aborted = false
+	c.err = nil
 	c.pluginIdx = -1
 }
 
@@ -106,7 +126,7 @@ func (c *Context) Error() error {
 	return c.err
 }
 
-// SetError ...
+// SetError set err as context error, but not abort the context procedure
 func (c *Context) SetError(err error) {
 	c.err = err
 	c.JSON(http.StatusInternalServerError,
@@ -136,14 +156,17 @@ func (c *Context) JSON(status int, v interface{}) {
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
-	fmt.Fprintf(c.w, string(byts))
 	c.w.Header().Set("Content-Type", "application/json")
 	c.AbortWithStatus(status)
+	fmt.Fprintf(c.w, string(byts))
 }
 
 // String ...
 func (c *Context) String(status int, s string) {
-	fmt.Fprintf(c.w, s)
 	c.w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	c.AbortWithStatus(status)
+	fmt.Fprintf(c.w, s)
 }
+
+// close only for ContextPool
+func (c *Context) close() {}
