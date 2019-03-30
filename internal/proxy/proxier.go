@@ -147,16 +147,36 @@ func (p *Proxier) LoadBreakers(cfgs map[string][]*models.ServerInstance) {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
-	var cbSt gobreaker.Settings
 	p.cb = make(map[string]*gobreaker.CircuitBreaker)
-	cbSt.ReadyToTrip = readyToTrip
+	var cbSt gobreaker.Settings
 
 	for clsID, cls := range cfgs {
-		// TODO: support ins has config of breaker settings
 		for _, ins := range cls {
-			cbSt.Name = genCbKey(clsID, ins.Idx)
+			if !ins.OpenBreaker {
+				continue
+			}
+
+			// TODO(done): support ins has config of breaker settings
+			if ins.BreakerSetting != nil {
+				// has own breaker setting
+				cbSt = gobreaker.Settings{
+					Name:        genCbKey(clsID, ins.Idx),
+					Interval:    time.Duration(ins.BreakerSetting.ClearInterval) * time.Millisecond,
+					MaxRequests: ins.BreakerSetting.MaxRequests,
+					Timeout:     time.Duration(ins.BreakerSetting.Timeout) * time.Millisecond,
+					ReadyToTrip: genReadyToTrip(ins.BreakerSetting.TripRequestCnt,
+						ins.BreakerSetting.TripFailureRatio),
+				}
+				logger.Logger.Infof("breaker %s is registered with setting: %v", cbSt.Name, cbSt)
+			} else {
+				// set with default setting
+				cbSt = gobreaker.Settings{
+					Name:        genCbKey(clsID, ins.Idx),
+					ReadyToTrip: defaultReadyToTrip,
+				}
+				logger.Logger.Infof("breaker %s is registered with default setting", cbSt.Name)
+			}
 			p.cb[cbSt.Name] = gobreaker.NewCircuitBreaker(cbSt)
-			logger.Logger.Infof("breaker %s is registered", cbSt.Name)
 		}
 	}
 }
@@ -184,7 +204,7 @@ func (p *Proxier) LoadAPIs(rules []*models.API) {
 	p.apiRules = make(map[string]*models.API)
 	p.router = httprouter.New()
 	for _, rule := range rules {
-		// [done] TODO: valid rule all string need to be lower
+		// [TODO](done): valid rule all string need to be lower
 		path := strings.ToLower(rule.Path)
 		method := strings.ToLower(rule.Method)
 		if _, ok := p.apiRules[path]; ok {
@@ -206,7 +226,7 @@ func (p *Proxier) LoadRouting(rules []*models.Routing) {
 
 	p.routingRules = make(map[string]*models.Routing)
 	for _, rule := range rules {
-		// [done] TODO: valid rule all string need to be lower
+		// [TODO](done): valid rule all string need to be lower
 		prefix := strings.ToLower(rule.Prefix)
 		if len(prefix) <= 1 {
 			logger.Logger.Errorf("prefix of [%s] is invalid , so skipped\n", prefix)
@@ -225,7 +245,7 @@ func (p *Proxier) LoadRouting(rules []*models.Routing) {
 }
 
 // callAPIWithCombination
-// [done] TODO: combine two or more response
+// [TODO](done): combine two or more response
 func (p *Proxier) callAPIWithCombination(rule *models.API, c *plugin.Context) error {
 	respChan := make(chan responseChan, len(rule.CombineReqCfgs))
 	wg := sync.WaitGroup{}
@@ -303,7 +323,7 @@ func (p *Proxier) callAPI(rule *models.API, c *plugin.Context) error {
 	}
 	srvIns := cls.Distribute()
 
-	// [done] TODO: prevent requets
+	// [TODO](done): prevent requets
 	// execute proxy call
 	cb, exist := p.cb[genCbKey(cls.Idx, srvIns.Idx)]
 	logger.Logger.Debugf("got cb with key: %s, got: %v", genCbKey(cls.Idx, srvIns.Idx), ok)
@@ -354,7 +374,7 @@ func (p *Proxier) callRouting(rule *models.Routing, c *plugin.Context) error {
 	// setRequestWithInstanceID(req, cls.Idx, srvIns.Idx)
 
 	// execute proxy call
-	// [done] TODO: preventRequest
+	// [TODO](done): preventRequest
 	cb, exist := p.cb[genCbKey(cls.Idx, srvIns.Idx)]
 	logger.Logger.Debugf("got cb with key: %s, got: %v", genCbKey(cls.Idx, srvIns.Idx), ok)
 
