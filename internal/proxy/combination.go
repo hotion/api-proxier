@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
+	// "fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -18,6 +18,10 @@ import (
 var (
 	// ErrTimeout ...
 	ErrTimeout = errors.New("combineReq timeout error")
+
+	// TODO: support config
+	// client to request multi server timeout duration, default is 5 second
+	combinationClientReqTimeout = 5 * time.Second
 )
 
 type responseChan struct {
@@ -52,33 +56,37 @@ func combineReq(ctx context.Context, serverHost string, body io.Reader,
 		r.Err = ErrTimeout
 		break
 	default:
-		url := fmt.Sprintf("%s%s", serverHost, cfg.Path)
-		req, err := http.NewRequest(cfg.Method, url, body)
-		if err != nil {
+		var (
+			req  *http.Request
+			resp *http.Response
+			err  error
+		)
+		// prepare request with method, path and data from body
+		if req, err = http.NewRequest(cfg.Method, serverHost+cfg.Path, body); err != nil {
 			r.Err = err
 			logger.Logger.Errorf("could not finish NewRequest: %v", err)
 			break
+
 		}
-		client := http.Client{
-			Timeout: 5 * time.Second, // TODO: support config
-		}
-		resp, err := client.Do(req)
-		if err != nil {
+		// send to server
+		client := http.Client{Timeout: combinationClientReqTimeout}
+		if resp, err = client.Do(req); err != nil {
 			r.Err = err
 			logger.Logger.Errorf("could not finish client.Do: %v", err)
 			break
 		}
 
+		// read response
 		byts, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
 			r.Err = err
 			logger.Logger.Errorf("could not ReadAll resp.Body: %v", err)
 			break
 		}
-		resp.Body.Close()
+		defer resp.Body.Close()
 		json.Unmarshal(byts, &r.Data)
 	}
 
-	// put into channel
+	// put response into channel
 	rc <- r
 }

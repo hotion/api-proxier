@@ -4,6 +4,7 @@ import (
 	// "context"
 	// "encoding/json"
 	"net/http"
+	"net/http/pprof"
 	"strings"
 	"time"
 
@@ -19,15 +20,17 @@ import (
 )
 
 // New Engine ...
-func New(etcdAddrs []string, pluginsFlag []string) (*Engine, error) {
+func New(etcdAddrs []string, pluginsFlag []string, debug bool) (*Engine, error) {
 	store, err := etcdutils.NewEtcdStore(etcdAddrs)
 	if err != nil {
 		return nil, err
 	}
 
 	e := &Engine{
-		proxier: proxy.New(nil, nil, nil),
-		store:   store,
+		proxier:  proxy.New(nil, nil, nil),
+		store:    store,
+		debug:    debug,
+		debugMux: http.NewServeMux(),
 		// kapi:    kapi,
 	}
 
@@ -39,9 +42,18 @@ func New(etcdAddrs []string, pluginsFlag []string) (*Engine, error) {
 	e.initialWatchers()
 
 	// generate a new contextPool
-	if e.contextPool, err = plugin.NewContextPool(100, 1000,
+	if e.contextPool, err = plugin.NewContextPool(10000, 100000,
 		plugin.DefaultFactory, e.allPlugins); err != nil {
 		return nil, err
+	}
+
+	// debug mode pprof
+	if e.debug {
+		e.debugMux.HandleFunc("/debug/pprof/", pprof.Index)
+		e.debugMux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+		e.debugMux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		e.debugMux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		e.debugMux.HandleFunc("/debug/pprof/trace", pprof.Trace)
 	}
 
 	return e, nil
@@ -54,6 +66,8 @@ type Engine struct {
 	proxier      *proxy.Proxier       // proxier
 	store        *etcdutils.EtcdStore // etcd storer
 	contextPool  *plugin.ContextPool
+	debug        bool
+	debugMux     *http.ServeMux
 	// kapi         client.KeysAPI  // etcd client api
 	// addr         string          // gate addr
 }
@@ -163,6 +177,10 @@ func (e *Engine) prepareRoutings() {
 
 // ServeHTTP the implemention of http.Handler
 func (e *Engine) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	if e.debug && strings.HasPrefix(req.URL.Path, "/debug") {
+		e.debugMux.ServeHTTP(w, req)
+		return
+	}
 	// ctx := plugin.NewContext(w, req, e.allPlugins)
 	ctx, err := e.contextPool.Get(w, req, plugin.DefaultPreFactory)
 	if err != nil {
@@ -189,6 +207,10 @@ func (e *Engine) Run(addr string) error {
 		"addr":       addr,
 	}).Info("start listening")
 
-	handler := http.TimeoutHandler(e, 5*time.Second, configs.TIMEOUT)
+	timeout := 5 * time.Second
+	if e.debug {
+		timeout = time.Duration(100 * time.Second)
+	}
+	handler := http.TimeoutHandler(e, timeout, configs.TIMEOUT)
 	return http.ListenAndServe(addr, handler)
 }

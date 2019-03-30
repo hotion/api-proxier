@@ -33,7 +33,7 @@ func main() {
 	logger.Init(*logpath, *debug)
 
 	// new engine to run
-	e, err := engine.New(etcdAddrs, plugins)
+	e, err := engine.New(etcdAddrs, plugins, *debug)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -23,8 +23,8 @@ import (
 // }
 
 // NewContext generate a Context
-// [done] TODO: do this work with pool, but here remain this funcs
-// TODO: design a test for this function with ContextPool
+// [TODO](done): do this work with pool, but here remain this funcs
+// [TODO](done): design a test for this function with ContextPool
 func NewContext(w http.ResponseWriter, req *http.Request, plugins []Plugin) *Context {
 	method := req.Method
 	path := req.URL.Path
@@ -88,7 +88,7 @@ func (c *Context) Next() {
 }
 
 // Abort process to stop calling next plugin
-// [done] TODO: ignore response here, should call JSON, or String manually
+// [TODO](done): ignore response here, should call JSON, or String manually
 func (c *Context) Abort() {
 	c.aborted = true
 }

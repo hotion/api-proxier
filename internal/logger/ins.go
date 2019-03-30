@@ -13,7 +13,8 @@ var (
 // Init call server-common to
 func Init(logPath string, debug bool) (err error) {
 	var (
-		filename = "api-proxier.log"
+		// filename = "api-proxier.log"
+		filename = ""
 		lv       = "info"
 	)
 	// open debug

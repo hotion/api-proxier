@@ -1,9 +1,9 @@
 package plugin_test
 
 import (
+	"github.com/jademperor/api-proxier/internal/stdplugin/httplog"
+	"github.com/jademperor/api-proxier/internal/stdplugin/ratelimit"
 	"github.com/jademperor/api-proxier/plugin"
-	"github.com/jademperor/api-proxier/plugin/httplog"
-	"github.com/jademperor/api-proxier/plugin/ratelimit"
 
 	"net/http/httptest"
 	"testing"
